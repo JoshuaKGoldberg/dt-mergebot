@@ -1,7 +1,7 @@
 import * as Comments from "./comments";
+import * as emoji from './emoji';
 import * as urls from "./urls";
-import { PrInfo, BotResult, FileInfo } from "./pr-info";
-import { ReviewInfo } from "./pr-info";
+import { PrInfo, BotResult, FileInfo, ReviewInfo } from "./pr-info";
 import { noNullish, flatten, unique, sameUser, min, sha256, abbrOid } from "./util/util";
 import * as dayjs from "dayjs";
 import * as advancedFormat from "dayjs/plugin/advancedFormat";
@@ -185,14 +185,14 @@ function extendPrInfo(info: PrInfo): ExtendedPrInfo {
     function getApprovedBy() {
         return hasChangereqs ? []
             : approvedReviews.map(r => r.isMaintainer ? "maintainer"
-                                       : allOwners.some(o => sameUser(o, r.reviewer)) ? "owner"
-                                       : "other");
+                : allOwners.some(o => sameUser(o, r.reviewer)) ? "owner"
+                    : "other");
     }
 
     function getPendingCriticalPackages() {
         return noNullish(info.pkgInfo.map(p =>
             p.popularityLevel === "Critical" && !p.owners.some(o => approvedReviews.some(r => sameUser(o, r.reviewer)))
-            ? p.name : null));
+                ? p.name : null));
     }
 
     function getApproverKind() {
@@ -205,7 +205,7 @@ function extendPrInfo(info: PrInfo): ExtendedPrInfo {
             } as const)[info.popularityLevel];
         return who === "maintainer" && blessed && !noOtherOwners ? "owner"
             : who === "owner" && noOtherOwners ? "maintainer"
-            : who;
+                : who;
     }
 
     function getApproved() {
@@ -219,13 +219,13 @@ function extendPrInfo(info: PrInfo): ExtendedPrInfo {
         // E.g. let people review, but fall back to the DT maintainers based on the access rights above
         return approverKind !== "maintainer" ? "Waiting for Code Reviews"
             : blessable ? "Needs Maintainer Review"
-            : "Needs Maintainer Action";
+                : "Needs Maintainer Action";
     }
 
 }
 
 export function process(prInfo: BotResult,
-                        extendedCallback: (info: ExtendedPrInfo) => void = _i => {}): Actions {
+    extendedCallback: (info: ExtendedPrInfo) => void = _i => { }): Actions {
     if (prInfo.type === "remove") {
         return {
             ...createEmptyActions(),
@@ -260,8 +260,8 @@ export function process(prInfo: BotResult,
     label("Popular package", info.popularityLevel === "Popular");
     label("Other Approved", info.approvedBy.includes("other"));
     label("Owner Approved",
-          info.approvedBy.includes("owner")
-          && info.pendingCriticalPackages.length === 0); // and *all* owners of critical packages
+        info.approvedBy.includes("owner")
+        && info.pendingCriticalPackages.length === 0); // and *all* owners of critical packages
     label("Maintainer Approved", info.approvedBy.includes("maintainer"));
     label("New Definition", info.hasNewPackages);
     label("Edits Owners", info.editsOwners);
@@ -324,8 +324,8 @@ export function process(prInfo: BotResult,
             label("Self Merge");
             // post even when merging, so it won't get deleted
             post(Comments.OfferSelfMerge(info.author,
-                                         (info.tooManyOwners || info.hasMultiplePackages) ? [] : info.otherOwners,
-                                         headCommitAbbrOid));
+                (info.tooManyOwners || info.hasMultiplePackages) ? [] : info.otherOwners,
+                headCommitAbbrOid));
             if (info.hasValidMergeRequest) {
                 actions.shouldMerge = true;
                 actions.projectColumn = "Recently Merged";
@@ -353,8 +353,8 @@ export function process(prInfo: BotResult,
 
 function makeStaleness(now: Date, author: string, otherOwners: string[]) { // curried for convenience
     return (kind: StalenessKind, since: Date,
-            freshDays: number, attnDays: number, nearDays: number,
-            doneColumn: ColumnName | "CLOSE") => {
+        freshDays: number, attnDays: number, nearDays: number,
+        doneColumn: ColumnName | "CLOSE") => {
         const days = dayjs(now).diff(since, "days");
         const state = days <= freshDays ? "fresh" : days <= attnDays ? "attention" : days <= nearDays ? "nearly" : "done";
         const kindAndState = `${kind}:${state}`;
@@ -391,34 +391,33 @@ function createWelcomeComment(info: ExtendedPrInfo, post: (c: Comments.Comment) 
     const specialWelcome = !info.isFirstContribution ? `` :
         ` I see this is your first time submitting to DefinitelyTyped 👋 — I'm the local bot who will help you through the process of getting things through.`;
     display(`@${info.author} Thank you for submitting this PR!${specialWelcome}`,
-            ``,
-            `***This is a live comment which I will keep updated.***`);
+        ``,
+        `***This is a live comment which I will keep updated.***`);
 
-    const criticalNum = info.pkgInfo.reduce((num,pkg) => pkg.popularityLevel === "Critical" ? num+1 : num, 0);
+    const criticalNum = info.pkgInfo.reduce((num, pkg) => pkg.popularityLevel === "Critical" ? num + 1 : num, 0);
     if (criticalNum === 0 && info.popularityLevel === "Critical") throw new Error("Internal Error: unexpected criticalNum === 0");
     const requiredApprover =
         info.approverKind === "other" ? "type definition owners, DT maintainers or others"
-        : info.approverKind === "maintainer" ? "a DT maintainer"
-        : criticalNum <= 1 ? "type definition owners or DT maintainers"
-        : "all owners or a DT maintainer";
+            : info.approverKind === "maintainer" ? "a DT maintainer"
+                : criticalNum <= 1 ? "type definition owners or DT maintainers"
+                    : "all owners or a DT maintainer";
     const RequiredApprover = requiredApprover[0]!.toUpperCase() + requiredApprover.substring(1);
 
     if (info.isUntested) {
         post(Comments.SuggestTesting(info.author, testsLink));
     } else if (info.editsInfra) {
         display(``,
-                `This PR touches some part of DefinitelyTyped infrastructure, so ${requiredApprover} will need to review it. This is rare — did you mean to do this?`);
+            `This PR touches some part of DefinitelyTyped infrastructure, so ${requiredApprover} will need to review it. This is rare — did you mean to do this?`);
     }
 
     const announceList = (what: string, xs: readonly string[]) => `${xs.length} ${what}${xs.length !== 1 ? "s" : ""}`;
     const usersToString = (users: string[]) => users.map(u => (info.isAuthor(u) ? "✎" : "") + "@" + u).join(", ");
     const reviewLink = (f: FileInfo) =>
-        `[\`${f.path.replace(/^types\/(.*\/)/, "$1")}\`](${
-          urls.review(info.pr_number)}/${info.headCommitOid}#diff-${sha256(f.path)})`;
+        `[\`${f.path.replace(/^types\/(.*\/)/, "$1")}\`](${urls.review(info.pr_number)}/${info.headCommitOid}#diff-${sha256(f.path)})`;
 
     display(``,
-            `## ${announceList("package", info.packages)} in this PR`,
-            ``);
+        `## ${announceList("package", info.packages)} in this PR`,
+        ``);
     let addedSelfToManyOwners = 0;
     if (info.pkgInfo.length === 0) {
         display(`This PR is editing only infrastructure files!`);
@@ -429,9 +428,9 @@ function createWelcomeComment(info: ExtendedPrInfo, post: (c: Comments.Comment) 
         const urlPart = p.name.replace(/^(.*?)__(.)/, "@$1/$2");
         const authorIsOwner = !p.owners.some(info.isAuthor) ? [] : [`(author is owner)`];
         display([`* \`${p.name}\`${kind}`,
-                 `[on npm](https://www.npmjs.com/package/${urlPart}),`,
-                 `[on unpkg](https://unpkg.com/browse/${urlPart}@latest/)`,
-                 ...authorIsOwner].join(" "));
+        `[on npm](https://www.npmjs.com/package/${urlPart}),`,
+        `[on unpkg](https://unpkg.com/browse/${urlPart}@latest/)`,
+        ...authorIsOwner].join(" "));
 
         const approvers = info.approvedReviews.filter(r => p.owners.some(o => sameUser(o, r.reviewer))).map(r => r.reviewer);
         if (approvers.length) {
@@ -456,13 +455,13 @@ function createWelcomeComment(info: ExtendedPrInfo, post: (c: Comments.Comment) 
     }
     if (addedSelfToManyOwners > 0) {
         display(``,
-                `@${info.author}: I see that you have added yourself as an owner${addedSelfToManyOwners > 1 ? " to several packages" : ""}, are you sure you want to [become an owner](${urls.definitionOwners})?`);
+            `@${info.author}: I see that you have added yourself as an owner${addedSelfToManyOwners > 1 ? " to several packages" : ""}, are you sure you want to [become an owner](${urls.definitionOwners})?`);
     }
 
     // Lets the author know who needs to review this
     display(``,
-            `## Code Reviews`,
-            ``);
+        `## Code Reviews`,
+        ``);
     if (info.hasNewPackages) {
         display(`This PR adds a new definition, so it needs to be reviewed by ${requiredApprover} before it can be merged.`);
     } else if (info.popularityLevel === "Critical" && !info.maintainerBlessed) {
@@ -483,14 +482,14 @@ function createWelcomeComment(info: ExtendedPrInfo, post: (c: Comments.Comment) 
     }
 
     display(``,
-            `## Status`,
-            ``,
-            ` * ${emoji(!info.hasMergeConflict)} No merge conflicts`);
+        `## Status`,
+        ``,
+        ` * ${emoji.failure(!info.hasMergeConflict)} No merge conflicts`);
 
     const expectedResults = info.ciResult === "unknown" ? "finished" : "passed";
-    display(` * ${emoji(info.ciResult === "pass")} Continuous integration tests have ${expectedResults}`);
+    display(` * ${emoji.result(info.ciResult)} Continuous integration tests have ${expectedResults}`);
 
-    const approved = emoji(info.approved);
+    const approved = emoji.approved(info.approved);
 
     if (info.hasNewPackages) {
         display(` * ${approved} Only ${requiredApprover} can approve changes when there are new packages added`);
@@ -502,7 +501,7 @@ function createWelcomeComment(info: ExtendedPrInfo, post: (c: Comments.Comment) 
         display(` * ${approved} ${RequiredApprover} needs to approve changes which affect more than one package`);
         for (const p of info.pkgInfo) {
             if (!(p.name && p.popularityLevel === "Critical")) continue;
-            display(`   - ${emoji(!info.pendingCriticalPackages.includes(p.name))} ${p.name}`);
+            display(`   - ${emoji.approved(!info.pendingCriticalPackages.includes(p.name))} ${p.name}`);
         }
     } else if (info.hasMultiplePackages) {
         display(` * ${approved} ${RequiredApprover} needs to approve changes which affect more than one package`);
@@ -526,9 +525,9 @@ function createWelcomeComment(info: ExtendedPrInfo, post: (c: Comments.Comment) 
     if (info.staleness && info.staleness.state !== "fresh") {
         const expl = info.staleness.explanation;
         display(``,
-                `## Inactive`,
-                ``,
-                `This PR has been inactive for ${info.staleness.days} days${!expl ? "." : " — " + expl}`);
+            `## Inactive`,
+            ``,
+            `This PR has been inactive for ${info.staleness.days} days${!expl ? "." : " — " + expl}`);
     }
 
     // Remove the 'now' attribute because otherwise the comment would need editing every time
@@ -536,14 +535,9 @@ function createWelcomeComment(info: ExtendedPrInfo, post: (c: Comments.Comment) 
     const shallowPresentationInfoCopy = { ...info.orig, now: "-" };
 
     display(``,
-            `----------------------`,
-            `<details><summary>Diagnostic Information: What the bot saw about this PR</summary>\n\n${
-              "```json\n" + JSON.stringify(shallowPresentationInfoCopy, undefined, 2) + "\n```"
-            }\n\n</details>`);
+        `----------------------`,
+        `<details><summary>Diagnostic Information: What the bot saw about this PR</summary>\n\n${"```json\n" + JSON.stringify(shallowPresentationInfoCopy, undefined, 2) + "\n```"
+        }\n\n</details>`);
 
     return content.trimEnd();
-
-    function emoji(n: boolean) {
-        return n ? "✅" : "❌";
-    }
 }
